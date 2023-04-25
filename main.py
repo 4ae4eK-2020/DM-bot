@@ -17,10 +17,14 @@ isNewPlayer = False
 isListPlayer = False
 
 bot = commands.Bot(command_prefix=prefix, intents=intents)
+
+
 @bot.event
 async def on_ready():
+    print(
+        f"We have logged in as {bot.user}. Invite link: https://discord.com/api/oauth2/authorize?client_id"
+        f"=1089791970886557696&permissions=8&scope=bot")
 
-    print(f"We have logged in as {bot.user}. Invite link: https://discord.com/api/oauth2/authorize?client_id=1089791970886557696&permissions=8&scope=bot")
 
 @bot.command()
 async def hello(message):
@@ -28,8 +32,9 @@ async def hello(message):
         return
     await message.send("Привет, " + message.author.name)
 
+
 @bot.command()
-async def giveRole(ctx, *,roleName):
+async def giveRole(ctx, *, roleName):
     print(roleName)
     guild = ctx.guild
     user = ctx.message.author
@@ -39,6 +44,7 @@ async def giveRole(ctx, *,roleName):
     else:
         await guild.create_role(name=roleName)
         await user.add_roles(user, role)
+
 
 @bot.command()
 async def newGame(ctx, title, *, args):
@@ -57,8 +63,7 @@ async def newGame(ctx, title, *, args):
 
 
 @bot.command()
-async def новыйКанал(ctx, channelName):
-
+async def newChannel(ctx, channelName):
     guild = ctx.guild
     category = discord.utils.get(guild.categories, name="Лобби")
 
@@ -71,12 +76,11 @@ async def новыйКанал(ctx, channelName):
     await guild.create_text_channel(name=channelName, category=category)
     await ctx.send(embed=embed)
 
+
 @bot.command()
-async def новыйИгрок(ctx, *, message):
+async def newPlayer(ctx, *, message):
     # do something with DB
     print("1")
 
 
 bot.run(os.getenv("TOKEN"))
-
-
