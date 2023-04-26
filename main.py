@@ -1,3 +1,4 @@
+from datetime import datetime
 import discord
 from discord.ext import commands
 from discord.ui import Button, View
@@ -36,6 +37,10 @@ with db:
     tables = [Place, Event, User]
     if not all(table.table_exists() for table in tables):
         db.create_tables(tables)
+
+    #new_place = Place.insert(name="НТИ")
+    #new_place.execute()
+
     @bot.command()
     async def giveRole(ctx, *, roleName):
         print(roleName)
@@ -54,20 +59,32 @@ with db:
 
         args_arr = args.split(';')
         title = args_arr[0]
-
-        args_arr[0] = ''
+        description = args_arr[1]
+        min_players_count = args_arr[2]
+        max_players_count = args_arr[3]
+        place = args_arr[4]
+        date_time = args_arr[5]
 
         embed = disnake.Embed(
             title=title,
-            description=''.join(args_arr),
+            description=description,
+            timestamp=datetime.strptime(date_time + " 00:00:00", '%d.%m.%y %H:%M:%S'),
             color=disnake.Colour.dark_green()
         )
+
+        embed.add_field("На сколько игроков рассчитано", f"от {min_players_count} до {max_players_count}")
+        embed.add_field("Где будет проходить", place)
 
         accept = Button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅", custom_id="participate")
         cancel = Button(label="Подписаться", style=discord.ButtonStyle.secondary, emoji="🔔", custom_id="subscription")
         view = View()
         view.add_item(accept)
         view.add_item(cancel)
+
+        new_event = Event.insert(name=title, description=description, min_count= min_players_count,
+                                 max_count=max_players_count, place=Place.select().where(Place.name == "НТИ"),
+                                 date_time=date_time, poster_url="_", discord_role_id=1)
+        new_event.execute()
         await ctx.send(embed=embed, view=view)
 
 
