@@ -27,7 +27,7 @@ async def on_ready():
         f"=1089791970886557696&permissions=8&scope=bot")
 
 
-@bot.command()
+@bot.command(help='say hello to you sweetly)')
 async def hello(message):
     if message.author == bot.user:
         return
@@ -40,7 +40,7 @@ with db:
         db.create_tables(tables)
 
 
-    @bot.command()
+    @bot.command(help='give role to you (if you has permission)')
     async def giveRole(ctx, *, roleName):
         print(roleName)
         guild = ctx.guild
@@ -53,7 +53,7 @@ with db:
             await user.add_roles(user, role)
 
 
-    @bot.command()
+    @bot.command(help='DM only; create event message')
     async def newGame(ctx, *, args):
 
         args_arr = args.split('; ')
@@ -97,7 +97,7 @@ with db:
         accept.callback = participate_callback(disnake.MessageInteraction)
 
 
-    @bot.command()
+    @bot.command(help='moderators only; create new channel in category')
     async def newChannel(ctx, channelName, categoryName):
         guild = ctx.guild
 
