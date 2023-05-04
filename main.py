@@ -38,9 +38,6 @@ with db:
     if not all(table.table_exists() for table in tables):
         db.create_tables(tables)
 
-    #new_place = Place.insert(name="НТИ")
-    #new_place.execute()
-
     @bot.command()
     async def giveRole(ctx, *, roleName):
         print(roleName)
@@ -53,17 +50,20 @@ with db:
             await guild.create_role(name=roleName)
             await user.add_roles(user, role)
 
-
     @bot.command()
     async def newGame(ctx, *, args):
 
-        args_arr = args.split(';')
+        args_arr = args.split('; ')
         title = args_arr[0]
         description = args_arr[1]
         min_players_count = args_arr[2]
         max_players_count = args_arr[3]
         place = args_arr[4]
         date_time = args_arr[5]
+
+        role = discord.utils.get(ctx.guild.roles, name=title)
+        if not role:
+            role = await ctx.guild.create_role(name=title)
 
         embed = disnake.Embed(
             title=title,
@@ -75,23 +75,31 @@ with db:
         embed.add_field("На сколько игроков рассчитано", f"от {min_players_count} до {max_players_count}")
         embed.add_field("Где будет проходить", place)
 
-        accept = Button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅", custom_id="participate")
+        accept = Button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅",
+                        custom_id="participate")
         cancel = Button(label="Подписаться", style=discord.ButtonStyle.secondary, emoji="🔔", custom_id="subscription")
         view = View()
         view.add_item(accept)
         view.add_item(cancel)
 
-        new_event = Event.insert(name=title, description=description, min_count= min_players_count,
+        new_event = Event.insert(name=title, description=description, min_count=min_players_count,
                                  max_count=max_players_count, place=Place.select().where(Place.name == "НТИ"),
-                                 date_time=date_time, poster_url="_", discord_role_id=1)
+                                 date_time=date_time, poster_url="_", discord_role_id=role.id)
         new_event.execute()
         await ctx.send(embed=embed, view=view)
 
+        async def participate_callback(interaction):
+            await giveRole(ctx, roleName=title)
+
+        accept.callback = participate_callback(disnake.MessageInteraction)
 
     @bot.command()
-    async def newChannel(ctx, channelName):
+    async def newChannel(ctx, channelName, categoryName):
         guild = ctx.guild
-        category = discord.utils.get(guild.categories, name="Лобби")
+
+        category = discord.utils.get(guild.categories, name=categoryName)
+        if not category:
+            guild.create_category(categoryName)
 
         embed = disnake.Embed(
             title="Успех!",
@@ -101,15 +109,5 @@ with db:
 
         await guild.create_text_channel(name=channelName, category=category)
         await ctx.send(embed=embed)
-
-    @bot.listen("on_button_click")
-    async def game_listener(inter: disnake.MessageInteraction):
-        emoji_id = inter.component.custom_id
-        if emoji_id not in ["participate", "subscription"]:
-            return
-
-       # if emoji_id == "participate":
-            #role = discord.utils.get(inter.guild.roles, name=)
-         #   await inter.guild.get_role()
 
 bot.run(os.getenv("TOKEN"))
