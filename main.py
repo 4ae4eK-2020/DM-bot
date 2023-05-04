@@ -33,10 +33,12 @@ async def hello(message):
         return
     await message.send("Привет, " + message.author.name)
 
+
 with db:
     tables = [Place, Event, User]
     if not all(table.table_exists() for table in tables):
         db.create_tables(tables)
+
 
     @bot.command()
     async def giveRole(ctx, *, roleName):
@@ -49,6 +51,7 @@ with db:
         else:
             await guild.create_role(name=roleName)
             await user.add_roles(user, role)
+
 
     @bot.command()
     async def newGame(ctx, *, args):
@@ -93,13 +96,14 @@ with db:
 
         accept.callback = participate_callback(disnake.MessageInteraction)
 
+
     @bot.command()
     async def newChannel(ctx, channelName, categoryName):
         guild = ctx.guild
 
         category = discord.utils.get(guild.categories, name=categoryName)
         if not category:
-            guild.create_category(categoryName)
+            category = await guild.create_category(categoryName)
 
         embed = disnake.Embed(
             title="Успех!",
