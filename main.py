@@ -1,7 +1,5 @@
 from datetime import datetime
 import discord
-from discord.ext import commands
-from discord.ui import Button, View
 import disnake
 from dotenv import load_dotenv
 from model import *
@@ -9,15 +7,9 @@ import os
 
 load_dotenv()
 
-intents = discord.Intents.default()
-intents.message_content = True
-
 prefix = '+'
-emg = None
-isNewPlayer = False
-isListPlayer = False
 
-bot = commands.Bot(command_prefix=prefix, intents=intents)
+bot = discord.Bot()
 
 
 @bot.event
@@ -27,11 +19,11 @@ async def on_ready():
         f"=1089791970886557696&permissions=8&scope=bot")
 
 
-@bot.command(help='say hello to you sweetly)')
+@bot.slash_command(description='say hello to you sweetly)')
 async def hello(message):
     if message.author == bot.user:
         return
-    await message.send("Привет, " + message.author.name)
+    await message.respond("Привет, " + message.author.name)
 
 
 with db:
@@ -40,29 +32,37 @@ with db:
         db.create_tables(tables)
 
 
-    @bot.command(help='give role to you (if you has permission)')
-    async def giveRole(ctx, *, roleName):
-        print(roleName)
+    @bot.command(name="give_role", description='give role to you (if you has permission)')
+    async def giveRole(ctx, role_name: str, author="`"):
+        print(role_name)
         guild = ctx.guild
-        user = ctx.message.author
-        role = discord.utils.get(guild.roles, name=roleName)
+
+        if author == "`":
+            user = ctx.author
+        else:
+            user = author
+        role = discord.utils.get(guild.roles, name=role_name)
         if role:
             await user.add_roles(role)
         else:
-            await guild.create_role(name=roleName)
+            await guild.create_role(name=role_name)
             await user.add_roles(user, role)
+        if type(ctx) == discord.interactions.Interaction:
+            await ctx.response.send_message(f'Роль {role_name} была успешно выдана')
+        else:
+            await ctx.respond(f'Роль {role_name} была успешно выдана')
 
 
-    @bot.command(help='DM only; create event message')
-    async def newGame(ctx, *, args):
+    @bot.command(name="new_game", description='DM only; create event message')
+    async def newGame(ctx, *, title: str, description: str, min_players_count: int, max_players_count: int, place: str,
+                      date_time: str):
 
-        args_arr = args.split('; ')
-        title = args_arr[0]
-        description = args_arr[1]
-        min_players_count = args_arr[2]
-        max_players_count = args_arr[3]
-        place = args_arr[4]
-        date_time = args_arr[5]
+        title = title
+        description = description
+        min_players_count = min_players_count
+        max_players_count = max_players_count
+        place = place
+        date_time = date_time
 
         role = discord.utils.get(ctx.guild.roles, name=title)
         if not role:
@@ -77,41 +77,41 @@ with db:
 
         embed.add_field("На сколько игроков рассчитано", f"от {min_players_count} до {max_players_count}")
         embed.add_field("Где будет проходить", place)
-
-        accept = Button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅",
-                        custom_id="participate")
-        cancel = Button(label="Подписаться", style=discord.ButtonStyle.secondary, emoji="🔔", custom_id="subscription")
-        view = View()
-        view.add_item(accept)
-        view.add_item(cancel)
+        embed.set_author(name=ctx.author)
 
         new_event = Event.insert(name=title, description=description, min_count=min_players_count,
                                  max_count=max_players_count, place=Place.select().where(Place.name == "НТИ"),
                                  date_time=date_time, poster_url="_", discord_role_id=role.id)
         new_event.execute()
-        await ctx.send(embed=embed, view=view)
-
-        async def participate_callback(interaction):
-            await giveRole(ctx, roleName=title)
-
-        accept.callback = participate_callback(disnake.MessageInteraction)
+        await ctx.respond(embed=embed, view=GameEmbedView())
 
 
-    @bot.command(help='moderators only; create new channel in category')
-    async def newChannel(ctx, channelName, categoryName):
-        guild = ctx.guild
+class GameEmbedView(discord.ui.View):
+    @discord.ui.button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅")
+    async def participate_callback(self, newGame, interaction):
+        embed = interaction.message.embeds[0]
+        await giveRole(interaction, embed.title, interaction.user)
 
-        category = discord.utils.get(guild.categories, name=categoryName)
+    @discord.ui.button(label="Подписаться на новости", style=discord.ButtonStyle.secondary, emoji="🔔")
+    async def subscribe_callback(self, newGame, interacrion):
+        await giveRole(interacrion, "новости", interacrion.user)
+
+    @bot.command(name="new_channel", description='moderators only; create new channel in category')
+    async def new_channel(self, channel_name: str, category_name: str):
+        guild = self.guild
+
+        category = discord.utils.get(guild.categories, name=category_name)
         if not category:
-            category = await guild.create_category(categoryName)
+            category = await guild.create_category(category_name)
 
         embed = disnake.Embed(
             title="Успех!",
-            description=f"Канал {channelName} был успешно создан",
+            description=f"Канал {channel_name} был успешно создан",
             color=disnake.Colour.dark_green(),
         )
 
-        await guild.create_text_channel(name=channelName, category=category)
-        await ctx.send(embed=embed)
+        await guild.create_text_channel(name=channel_name, category=category)
+        await self.respond(embed=embed)
+
 
 bot.run(os.getenv("TOKEN"))
