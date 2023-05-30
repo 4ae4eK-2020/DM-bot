@@ -1,5 +1,6 @@
 from datetime import datetime
 import discord
+from discord.ext import tasks, commands
 import disnake
 from dotenv import load_dotenv
 from model import *
@@ -10,6 +11,8 @@ load_dotenv()
 prefix = '+'
 
 bot = discord.Bot()
+
+started_tasks = []
 
 
 @bot.event
@@ -54,8 +57,9 @@ with db:
 
 
     @bot.command(name="new_game", description='DM only; create event message')
+    @commands.has_role("DM")
     async def newGame(ctx, *, title: str, description: str, min_players_count: int, max_players_count: int, place: str,
-                      date_time: str):
+                      date_time: str, game_time: str):
 
         title = title
         description = description
@@ -63,6 +67,11 @@ with db:
         max_players_count = max_players_count
         place = place
         date_time = date_time
+        game_time = game_time
+
+        if Place.select().where(Place.name == place) is None:
+            new_place = Place.insert(name=place)
+            new_place.execute()
 
         role = discord.utils.get(ctx.guild.roles, name=title)
         if not role:
@@ -71,7 +80,7 @@ with db:
         embed = disnake.Embed(
             title=title,
             description=description,
-            timestamp=datetime.strptime(date_time + " 00:00:00", '%d.%m.%y %H:%M:%S'),
+            timestamp=datetime.strptime(date_time + " " + game_time, '%d.%m.%y %H:%M'),
             color=disnake.Colour.dark_green()
         )
 
@@ -80,21 +89,23 @@ with db:
         embed.set_author(name=ctx.author)
 
         new_event = Event.insert(name=title, description=description, min_count=min_players_count,
-                                 max_count=max_players_count, place=Place.select().where(Place.name == "НТИ"),
+                                 max_count=max_players_count, place=place,
                                  date_time=date_time, poster_url="_", discord_role_id=role.id)
         new_event.execute()
+
+        time_array = game_time.split(':')
+        warning_time = str(int(time_array[0]) - 1) + ":" + time_array[1]
+        if int(time_array[0]) - 1 < 10:
+            print(warning_time[0])
+            warning_time = '0' + warning_time
+
+        t = tasks.loop(minutes=1)(game_reminding)
+        started_tasks.append(t)
+        t.start(date_time, warning_time, ctx, role)
+
+        await new_channel(ctx, embed.title, embed.title)
         await ctx.respond(embed=embed, view=GameEmbedView())
 
-
-class GameEmbedView(discord.ui.View):
-    @discord.ui.button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅")
-    async def participate_callback(self, newGame, interaction):
-        embed = interaction.message.embeds[0]
-        await giveRole(interaction, embed.title, interaction.user)
-
-    @discord.ui.button(label="Подписаться на новости", style=discord.ButtonStyle.secondary, emoji="🔔")
-    async def subscribe_callback(self, newGame, interacrion):
-        await giveRole(interacrion, "новости", interacrion.user)
 
     @bot.command(name="new_channel", description='moderators only; create new channel in category')
     async def new_channel(self, channel_name: str, category_name: str):
@@ -112,6 +123,26 @@ class GameEmbedView(discord.ui.View):
 
         await guild.create_text_channel(name=channel_name, category=category)
         await self.respond(embed=embed)
+
+
+    async def game_reminding(date_time, warning_time, ctx, role):
+        check_time = datetime.today().strftime(format='%d.%m.%y')
+        if warning_time == datetime.now().strftime(format='%H:%M'):
+            if check_time == date_time:
+                channel = discord.utils.get(ctx.guild.channels, name="новости")
+                await channel.send(f"{role.mention}, через час игра!")
+                print("end working!")
+
+
+class GameEmbedView(discord.ui.View):
+    @discord.ui.button(label="Принять участие", style=discord.ButtonStyle.secondary, emoji="✅")
+    async def participate_callback(self, newGame, interaction):
+        embed = interaction.message.embeds[0]
+        await giveRole(interaction, embed.title, interaction.user)
+
+    @discord.ui.button(label="Подписаться на новости", style=discord.ButtonStyle.secondary, emoji="🔔")
+    async def subscribe_callback(self, newGame, interacrion):
+        await giveRole(interacrion, "новости", interacrion.user)
 
 
 bot.run(os.getenv("TOKEN"))
